@@ -36,6 +36,9 @@ A Streamlit web app for **realtime transcription** using [OpenAI Whisper](https:
   - torch
   - torchaudio
   - numpy
+
+    **pip install -r requirements.txt**
+    
   - choco install ffmpeg # khusu choco jalanin di powershell admin #
     
   - Note: intstalasi diatas pake pip install semua kecuali chocho

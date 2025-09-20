@@ -44,4 +44,4 @@ A Streamlit web app for **realtime transcription** using [OpenAI Whisper](https:
     - Buka foldernya terus klik kanan "Buka di Terminal "
     - Terus masukin perintah di bawah ini
 
- ****python -m steramlit run transcrip.py****
+ ****python -m streamlit run transcrip.py****

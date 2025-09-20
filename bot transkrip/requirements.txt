@@ -1,6 +1,0 @@
-streamlit
-openai-whisper
-torch
-torchaudio
-numpy
-choco install ffmpeg # khusu choco jalanin di powershell admin   

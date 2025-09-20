@@ -37,7 +37,9 @@ A Streamlit web app for **realtime transcription** using [OpenAI Whisper](https:
   - torchaudio
   - numpy
   - choco install ffmpeg # khusu choco jalanin di powershell admin #
-
+    
+  - Note: intstalasi diatas pake pip install semua kecuali chocho
+    
     - Kalau sudah install semua dan download zip nya tinggal extact aja
     - Buka foldernya terus klik kanan "Buka di Terminal "
     - Terus masukin perintah di bawah ini

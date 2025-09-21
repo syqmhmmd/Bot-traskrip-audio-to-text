@@ -1,4 +1,11 @@
-streamlit
-faster-whisper
-numpy
-tqd
+# Whisper + dependencies
+openai-whisper
+torch
+torchaudio
+
+# Audio handling
+ffmpeg-python
+pydub
+
+# Utils
+tqdm

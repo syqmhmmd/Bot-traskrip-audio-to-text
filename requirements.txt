@@ -1,9 +1,5 @@
-# Whisper + dependencies
 openai-whisper
 
-# Audio handling
 ffmpeg-python
-pydub
 
-# Utils
 tqdm

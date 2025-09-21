@@ -1,3 +1,4 @@
+faster_whisper
 openai-whisper
 torch
 torchaudio

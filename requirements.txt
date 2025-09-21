@@ -1,7 +1,5 @@
 # Whisper + dependencies
 openai-whisper
-torch
-torchaudio
 
 # Audio handling
 ffmpeg-python

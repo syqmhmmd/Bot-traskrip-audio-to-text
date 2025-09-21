@@ -1,15 +1,20 @@
 import streamlit as st
 from faster_whisper import WhisperModel
-import os
-import time
-import math
-import random
+import os, time, math, shutil
 from datetime import datetime
 from pathlib import Path
-import shutil
+import ffmpeg
 
-st.set_page_config(page_title="Realtime Faster-Whisper Transcriber", layout="wide")
-st.title("🎙️ Realtime Transcription with Faster-Whisper + Timestamp + Runtime Timer")
+# === DEBUG cek modul ffmpeg yang ke-load ===
+try:
+    print("DEBUG → ffmpeg module path:", ffmpeg.__file__)
+    print("DEBUG → has input():", hasattr(ffmpeg, "input"))
+    print("DEBUG → attrs:", dir(ffmpeg)[:20])
+except Exception as e:
+    print("DEBUG ERROR:", e)
+
+st.set_page_config(page_title="Stable Whisper Transcriber", layout="wide")
+st.title("🎙️ Stable Faster-Whisper Transcriber")
 
 uploaded_file = st.file_uploader(
     "Upload audio file",
@@ -18,150 +23,93 @@ uploaded_file = st.file_uploader(
 model_size = st.selectbox(
     "Whisper model size", ["tiny", "base", "small", "medium", "large"], index=1
 )
+max_minutes = st.slider("Limit duration (minutes, 0 = full file)", 0, 60, 5)
 language = st.text_input("Language (optional, e.g. 'id' for Indonesian)")
-
 run_button = st.button("Start Transcription")
 
-
 def format_time(seconds: float) -> str:
-    """Ubah detik → HH:MM:SS"""
     m, s = divmod(int(seconds), 60)
     h, m = divmod(m, 60)
     return f"{h:02}:{m:02}:{s:02}"
 
-
 if run_button and uploaded_file is not None:
-    # === Folder custom buat simpan sementara ===
     UPLOAD_DIR = Path("uploads")
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    ext = Path(uploaded_file.name).suffix  # ambil ekstensi asli
+    ext = Path(uploaded_file.name).suffix
     file_path = UPLOAD_DIR / f"upload_{timestamp}{ext}"
 
-    # Simpan file upload
     with open(file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
-    st.write(f"Saved upload → `{file_path}` — size: {os.path.getsize(file_path):,} bytes")
+    st.write(f"📂 Saved → `{file_path}` — size: {os.path.getsize(file_path)/1024/1024:.2f} MB")
 
-    # Cek apakah ffmpeg tersedia
     if not shutil.which("ffmpeg"):
-        st.error("❌ ffmpeg tidak ditemukan. Silakan install ffmpeg dulu.")
+        st.error("❌ ffmpeg not found. Please install ffmpeg.")
         st.stop()
 
-    # Load Faster-Whisper model
+    # === Limit durasi kalau slider > 0 ===
+    if max_minutes > 0:
+        clipped_file = UPLOAD_DIR / f"clip_{timestamp}{ext}"
+        (
+            ffmpeg
+            .input(str(file_path))
+            .output(str(clipped_file), t=max_minutes*60)
+            .overwrite_output()
+            .run(quiet=True)
+        )
+        file_path = clipped_file
+        st.warning(f"⚡ Only transcribing first {max_minutes} minutes")
+
+    # === Auto pilih device ===
+    device = "cuda" if shutil.which("nvidia-smi") else "cpu"
+    compute_type = "float16" if device == "cuda" else "float32"
+
     try:
-        with st.spinner(f"Loading Faster-Whisper `{model_size}` model..."):
-            model = WhisperModel(model_size, device="cpu", compute_type="float32")
+        with st.spinner(f"Loading Whisper `{model_size}` on {device}..."):
+            model = WhisperModel(model_size, device=device, compute_type=compute_type)
     except Exception as e:
-        st.error(f"❌ Gagal load model: {e}")
+        st.error(f"❌ Error loading model: {e}")
         st.stop()
 
-    transcript_paragraphs = []
-    current_paragraph = ""
-    current_start, current_end = None, None
     transcript_box = st.empty()
     progress_bar = st.progress(0)
     runtime_placeholder = st.empty()
 
-    # Timer runtime
     start_time = time.time()
+    transcript_paragraphs = []
 
     with st.spinner("Transcribing..."):
         segments, info = model.transcribe(str(file_path), beam_size=5, language=language or None)
-        segments = list(segments)  # convert generator to list
+        segments = list(segments)
         total_segments = len(segments)
 
         for i, seg in enumerate(segments, start=1):
-            line = seg.text.strip()
-
-            if current_start is None:
-                current_start = seg.start
-
-            if len(current_paragraph) + len(line) < 120:
-                current_paragraph += " " + line
-                current_end = seg.end
-            else:
-                if current_paragraph.strip():
-                    transcript_paragraphs.append(
-                        f"[{format_time(current_start)} - {format_time(current_end)}]\n{current_paragraph.strip()}"
-                    )
-                current_paragraph = line
-                current_start = seg.start
-                current_end = seg.end
-
-            transcript_text = "\n\n".join(
-                transcript_paragraphs
-                + [
-                    f"[{format_time(current_start)} - {format_time(current_end)}]\n{current_paragraph.strip()}"
-                ]
+            transcript_paragraphs.append(
+                f"[{format_time(seg.start)} - {format_time(seg.end)}] {seg.text.strip()}"
             )
+
+            transcript_text = "\n\n".join(transcript_paragraphs)
             transcript_box.text_area("Transcript (Realtime)", transcript_text, height=400)
             progress_bar.progress(int(i / total_segments * 100))
 
             elapsed = time.time() - start_time
             runtime_placeholder.info(f"⏱️ Runtime: {format_time(elapsed)}")
 
-            time.sleep(0.05)  # biar natural
-
-    if current_paragraph.strip():
-        transcript_paragraphs.append(
-            f"[{format_time(current_start)} - {format_time(current_end)}]\n{current_paragraph.strip()}"
-        )
-
     progress_bar.empty()
-    st.success("✅ Transcription Completed!")
-
-    elapsed = time.time() - start_time
-    runtime_placeholder.success(f"⏱️ Total Runtime: {format_time(elapsed)}")
+    st.success("✅ Done!")
 
     final_text = "\n\n".join(transcript_paragraphs)
-    file_size = len(final_text.encode("utf-8"))
-
-    # === Progress bar download fake ===
-    download_status = st.empty()
-    download_bar = st.progress(0)
-    download_placeholder = st.empty()
-
-    downloaded = 0
-    step = 0
-    base_speed = 80
-    amplitude = 50
-    period = 20
-
-    while downloaded < file_size:
-        speed_kb = base_speed + amplitude * math.sin(step / period) + random.uniform(-5, 5)
-        speed_kb = max(10, speed_kb)
-
-        chunk_size = speed_kb * 1024 * 0.1
-        downloaded += chunk_size
-        if downloaded > file_size:
-            downloaded = file_size
-
-        pct = int(downloaded / file_size * 100)
-        download_bar.progress(pct)
-        download_status.text(
-            f"📥 Preparing download... {pct}% "
-            f"({downloaded/1024:.1f}KB / {file_size/1024:.1f}KB) @ {speed_kb:.1f} KB/s"
-        )
-
-        time.sleep(0.1)
-        step += 1
-
-    download_bar.empty()
-    download_status.success("✅ File ready to download!")
-
-    # === Tombol download ===
     out_filename = f"transcript_{timestamp}.txt"
-    download_placeholder.download_button(
-        "💾 Download Transcript with Timestamp",
+
+    st.download_button(
+        "💾 Download Transcript",
         data=final_text,
         file_name=out_filename,
         mime="text/plain",
     )
 
-    # === Auto delete file upload setelah selesai ===
+    # Auto cleanup
     if os.path.exists(file_path):
         os.remove(file_path)
-        st.info(f"🗑️ File sementara dihapus otomatis: `{file_path}`")

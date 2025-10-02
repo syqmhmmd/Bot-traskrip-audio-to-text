@@ -128,7 +128,6 @@ if run_button and uploaded_file is not None:
                 "Transcript (Realtime)",
                 transcript_text,
                 height=400,
-                key="transcript_box",
                 help="Transcription updates in real time. Copy or download after selesai."
             )
             progress_bar.progress(int(i / total_segments * 100))
@@ -143,12 +142,25 @@ if run_button and uploaded_file is not None:
     out_filename = f"transcript_{timestamp}.txt"
 
     st.download_button(
-        "💾 Download Transcript",
+        "💾 Download Transcript (Full)",
         data=final_text,
         file_name=out_filename,
         mime="text/plain",
         use_container_width=True
     )
+
+    # === Tambahan: Split per-segmen ===
+    st.subheader("📑 Download per-segmen")
+    for idx, para in enumerate(transcript_paragraphs, start=1):
+        seg_filename = f"segment_{idx}_{timestamp}.txt"
+        st.download_button(
+            f"Download Segment {idx}",
+            data=para,
+            file_name=seg_filename,
+            mime="text/plain",
+            key=f"seg_dl_{idx}",
+            use_container_width=True
+        )
 
     # Auto cleanup
     if os.path.exists(file_path):
